@@ -1,41 +1,76 @@
 package com.ai.testdata.aigen.service;
 
 import com.ai.testdata.aigen.model.GenerateRequest;
+import com.theokanning.openai.service.OpenAiService;
+import com.theokanning.openai.completion.chat.ChatCompletionRequest;
+import com.theokanning.openai.completion.chat.ChatMessage;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 @Service
 public class DataGeneratorService {
 
-    public Map<String, Object> generateData(GenerateRequest request) {
-        List<Map<String, Object>> generated = new ArrayList<>();
-        Random random = new Random();
+    private final OpenAiService openAiService;
+    private final ObjectMapper mapper = new ObjectMapper();
 
-        for (int i = 0; i < request.getRows(); i++) {
-            Map<String, Object> row = new HashMap<>();
-            int seed = random.nextInt(1000); // same seed for all fields in this row
-
-            for (String field : request.getFields()) {
-                row.put(field, generateRandomValue(field, random, seed));
-            }
-            generated.add(row);
-        }
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("data", generated);
-        response.put("rows", generated.size());
-        return response;
+    public DataGeneratorService(@Value("${openai.api.key}") String apiKey) {
+        this.openAiService = new OpenAiService(apiKey, Duration.ofSeconds(30));
     }
 
-    private Object generateRandomValue(String field, Random random, int seed) {
-        field = field.toLowerCase();
+    public Map<String, Object> generateData(GenerateRequest request) {
+        try {
+            String userPrompt = String.format(
+                    "Generate %d rows of realistic JSON test data for fields: %s. Respond ONLY with JSON array.",
+                    request.getRows(),
+                    String.join(", ", request.getFields())
+            );
 
-        if (field.contains("name")) return "User" + seed;
-        if (field.contains("email")) return "user" + seed + "@example.com";
-        if (field.contains("age")) return 18 + random.nextInt(50);
-        if (field.contains("city")) return List.of("Paris", "London", "Berlin", "Madrid").get(random.nextInt(4));
+            ChatCompletionRequest chatRequest = ChatCompletionRequest.builder()
+                    .model("gpt-4o-mini")
+                    .messages(List.of(new ChatMessage("user", userPrompt)))
+                    .temperature(0.8)
+                    .maxTokens(1000)
+                    .build();
 
-        return "Value" + seed;
+            String response = openAiService.createChatCompletion(chatRequest)
+                    .getChoices().get(0).getMessage().getContent();
+
+            // Step 1: Remove backticks or code fences
+            response = response.strip();
+            if (response.startsWith("```")) {
+                response = response.substring(response.indexOf('\n') + 1, response.lastIndexOf("```")).trim();
+            }
+            response = response.replaceAll("^`+|`+$", "");
+
+            // Step 2: Extract first JSON array/object from text using regex
+            Pattern jsonPattern = Pattern.compile("(\\{.*\\}|\\[.*\\])", Pattern.DOTALL);
+            Matcher matcher = jsonPattern.matcher(response);
+
+            if (matcher.find()) {
+                response = matcher.group(1);
+            } else {
+                throw new RuntimeException("No JSON object/array found in GPT response");
+            }
+
+            // Step 3: Parse JSON
+            List<Map<String, Object>> data = mapper.readValue(response, List.class);
+
+            return Map.of(
+                    "rows", data.size(),
+                    "data", data
+            );
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Map.of("error", "Failed to generate data: " + e.getMessage());
+        }
     }
 }
