@@ -27,55 +27,66 @@ public class DataGeneratorService {
 
     public Map<String, Object> generateData(GenerateRequest request) {
         try {
-            // 🧠 Build prompt
-            String userPrompt = String.format(
-                    "Generate %d rows of realistic JSON test data for fields: %s. " +
-                            "Respond ONLY with a valid JSON array. Do not include markdown or explanations.",
+            // Build GPT prompt
+            StringBuilder prompt = new StringBuilder();
+            prompt.append(String.format(
+                    "Generate %d rows of realistic JSON test data for fields: %s. ",
                     request.getRows(),
                     String.join(", ", request.getFields())
-            );
+            ));
+            prompt.append("Respond ONLY with a valid JSON array. ");
 
-            // 🧩 Build chat request
+            // Advanced instructions (optional)
+            if (request.getAdvancedInstructions() != null && !request.getAdvancedInstructions().isBlank()) {
+                prompt.append("Additionally, follow these instructions: ")
+                        .append(request.getAdvancedInstructions().trim())
+                        .append(" ");
+            } else {
+                // Default hint: GPT can repeat values naturally
+                prompt.append("It is OK for some fields to repeat naturally across rows. ");
+            }
+
+            prompt.append("Avoid forcing all values to be unique.");
+
+            // Send request to GPT
             ChatCompletionRequest chatRequest = ChatCompletionRequest.builder()
                     .model("gpt-4o-mini")
-                    .messages(List.of(new ChatMessage("user", userPrompt)))
+                    .messages(List.of(new ChatMessage("user", prompt.toString())))
                     .temperature(0.4)
                     .maxTokens(1200)
                     .build();
 
-            // 🧾 Get response
             String response = openAiService.createChatCompletion(chatRequest)
                     .getChoices().get(0).getMessage().getContent();
 
-            // 🧹 Clean up backticks or code fences
-            response = response.strip();
-            if (response.startsWith("```")) {
-                response = response.substring(response.indexOf('\n') + 1, response.lastIndexOf("```")).trim();
-            }
-            response = response.replaceAll("^`+|`+$", "");
+            // Robust cleanup
+            response = cleanGPTResponse(response);
 
-            // 🕵️ Extract JSON object or array
-            Pattern jsonPattern = Pattern.compile("(\\{.*\\}|\\[.*\\])", Pattern.DOTALL);
-            Matcher matcher = jsonPattern.matcher(response);
-            if (matcher.find()) {
-                response = matcher.group(1);
-            } else {
-                throw new RuntimeException("No JSON object/array found in GPT response: " + response);
-            }
-
-            // ✅ Parse JSON safely
+            // Parse JSON
             List<Map<String, Object>> data = mapper.readValue(response, List.class);
 
-            return Map.of(
-                    "rows", data.size(),
-                    "data", data
-            );
+            return Map.of("rows", data.size(), "data", data);
 
         } catch (Exception e) {
             e.printStackTrace();
-            return Map.of(
-                    "error", "Failed to generate data: " + e.getMessage()
-            );
+            return Map.of("error", "Failed to generate data: " + e.getMessage());
+        }
+    }
+
+    // Helper method
+    private String cleanGPTResponse(String response) {
+        response = response.strip();
+        if (response.startsWith("```")) {
+            response = response.substring(response.indexOf('\n') + 1, response.lastIndexOf("```")).trim();
+        }
+        response = response.replaceAll("^`+|`+$", "");
+
+        Pattern jsonPattern = Pattern.compile("(\\{.*\\}|\\[.*\\])", Pattern.DOTALL);
+        Matcher matcher = jsonPattern.matcher(response);
+        if (matcher.find()) {
+            return matcher.group(1);
+        } else {
+            throw new RuntimeException("No JSON object/array found in GPT response: " + response);
         }
     }
 }
