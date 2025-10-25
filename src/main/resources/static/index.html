@@ -19,47 +19,112 @@
 <div class="container">
     <h1>AI Test Data Generator</h1>
 
-    <label>Fields (comma-separated):</label>
-    <input type="text" id="fields" value="firstName,lastName,email,city,jobTitle" />
+    <!-- License Section -->
+    <div id="licenseSection">
+        <label for="licenseKey">Enter your Pro license key:</label>
+        <input id="licenseKey" type="text" placeholder="lsq_12345abcdef" />
+        <button id="verifyLicense">Verify</button>
+    </div>
 
-    <label>Number of rows:</label>
-    <input type="number" id="rows" value="3" min="1" max="100" />
+    <!-- Generator Section -->
+    <div id="generatorSection">
+        <label>Fields (comma-separated):</label>
+        <input type="text" id="fields" value="firstName,lastName,email,city,jobTitle" />
 
-    <label class="optional-label">Advanced instructions (optional, plain English):</label>
-    <textarea id="advancedInstructions" placeholder="E.g., '50% of users live in the same city'"></textarea>
+        <label>Number of rows:</label>
+        <input type="number" id="rows" value="3" min="1" max="100" />
 
-    <button id="generateBtn">Generate</button>
+        <label class="optional-label">Advanced instructions (optional, plain English):</label>
+        <textarea id="advancedInstructions" placeholder="E.g., '50% of users live in the same city'"></textarea>
 
-    <h3>Result:</h3>
-    <pre id="result">Click "Generate" to see data...</pre>
+        <button id="generateBtn">Generate</button>
+
+        <h3>Result:</h3>
+        <pre id="result">Click "Generate" to see data...</pre>
+    </div>
 </div>
 
 <script>
-    document.getElementById("generateBtn").addEventListener("click", async () => {
-      const fields = document.getElementById("fields").value
-        .split(",").map(f => f.trim()).filter(f => f);
-      const rows = parseInt(document.getElementById("rows").value, 10);
+    // Check if user is Pro from localStorage
+    let isPro = localStorage.getItem("isPro") === "true";
 
-      const advancedInstructions = document.getElementById("advancedInstructions").value.trim();
+    function unlockProFeatures() {
+        isPro = true;
+        localStorage.setItem("isPro", "true");
+        document.getElementById("licenseSection").style.display = "none";
+        alert("✅ Pro features unlocked! You now have unlimited rows and CSV export.");
+    }
 
-      const payload = { fields, rows };
-      if (advancedInstructions.length > 0) payload.advancedInstructions = advancedInstructions;
+    // Auto-check license from URL parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const licenseFromUrl = urlParams.get("license");
+    if (licenseFromUrl) {
+        document.getElementById("licenseKey").value = licenseFromUrl;
+        verifyLicense(licenseFromUrl);
+    }
 
-      const resultEl = document.getElementById("result");
-      resultEl.textContent = "Generating data... ⏳";
+    document.getElementById("verifyLicense").onclick = () => {
+        const key = document.getElementById("licenseKey").value.trim();
+        if (key) verifyLicense(key);
+    };
 
-      try {
-        const response = await fetch("/api/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+    function verifyLicense(key) {
+        fetch("/api/license/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ licenseKey: key })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.valid || (data.license && data.license.status === "active")) {
+                unlockProFeatures();
+            } else {
+                alert("❌ Invalid or expired license key.");
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("❌ Error verifying license. Try again later.");
         });
-        const data = await response.json();
-        resultEl.textContent = JSON.stringify(data, null, 2);
-      } catch (err) {
-        resultEl.textContent = "❌ Error: " + err.message;
-      }
+    }
+
+    // Generate Data Button
+    document.getElementById("generateBtn").addEventListener("click", async () => {
+        let fields = document.getElementById("fields").value.split(",").map(f => f.trim()).filter(f => f);
+        let rows = parseInt(document.getElementById("rows").value, 10);
+        const advancedInstructions = document.getElementById("advancedInstructions").value.trim();
+
+        if (!isPro && rows > 50) {
+            alert("Free users can only generate up to 50 rows. Upgrade to Pro for unlimited rows.");
+            rows = 50;
+        }
+
+        const payload = { fields, rows };
+        if (advancedInstructions.length > 0) payload.advancedInstructions = advancedInstructions;
+
+        const resultEl = document.getElementById("result");
+        resultEl.textContent = "Generating data... ⏳";
+
+        try {
+            const response = await fetch("/api/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            });
+            const data = await response.json();
+            resultEl.textContent = JSON.stringify(data, null, 2);
+        } catch (err) {
+            resultEl.textContent = "❌ Error: " + err.message;
+        }
     });
+
+    // Optional: show thank you alert if ?upgraded=true
+    if (urlParams.get("upgraded") === "true") {
+        alert("🎉 Thank you for upgrading to Pro! You now have access to higher limits and CSV export.");
+    }
+
+    // Hide license section if already Pro
+    if (isPro) document.getElementById("licenseSection").style.display = "none";
 </script>
 </body>
 </html>
