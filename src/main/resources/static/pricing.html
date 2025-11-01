@@ -1,64 +1,104 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI Test Data Generator – Pricing</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pricing - AI Test Data Generator</title>
+    <style>
+        body {
+          font-family: system-ui, sans-serif;
+          background-color: #f5f6fa;
+          margin: 0;
+          padding: 2rem;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        h2 { margin-bottom: 1.5rem; }
+
+        .plans {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 1.5rem;
+          justify-content: center;
+        }
+
+        .plan {
+          background: white;
+          border-radius: 1rem;
+          padding: 1.5rem;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          width: 260px;
+          text-align: center;
+        }
+
+        .plan h3 { margin-top: 0; }
+
+        button {
+          background-color: #4CAF50;
+          color: white;
+          border: none;
+          border-radius: 0.75rem;
+          padding: 0.75rem 1.5rem;
+          font-size: 1rem;
+          cursor: pointer;
+        }
+
+        button:hover { background-color: #45a049; }
+
+        .pro-btn {
+          background-color: #ff7f50;
+          font-weight: bold;
+        }
+
+        .pro-btn:hover { background-color: #ff5c33; }
+    </style>
 </head>
-<body class="bg-gray-50 font-sans text-gray-800">
-<div class="max-w-4xl mx-auto py-16 px-6">
-    <h1 class="text-4xl font-bold text-center mb-10">Pricing Plans</h1>
-    <p class="text-center text-gray-600 mb-12">
-        Choose the plan that fits your testing needs. Start for free — upgrade anytime.
-    </p>
+<body>
 
-    <div class="grid md:grid-cols-2 gap-8">
-        <!-- Free Plan -->
-        <div class="bg-white shadow-md rounded-2xl p-8 border border-gray-100">
-            <h2 class="text-2xl font-semibold mb-4">Free</h2>
-            <p class="text-gray-500 mb-6">Get started with basic test data generation.</p>
-            <ul class="space-y-3 mb-6">
-                <li>✅ Up to 20 rows per request</li>
-                <li>✅ JSON output</li>
-                <li>⚙️ Standard generation speed</li>
-                <li>🚫 No CSV export</li>
-            </ul>
-            <p class="text-3xl font-bold mb-6">€0</p>
-            <a href="index.html"
-               class="block text-center bg-gray-800 text-white rounded-xl py-3 hover:bg-gray-700 transition">
-                Use Free Plan
-            </a>
-        </div>
+<h2>Choose Your Plan</h2>
 
-        <!-- Pro Plan -->
-        <div class="bg-white shadow-lg rounded-2xl p-8 border border-indigo-200 relative overflow-hidden">
-            <div class="absolute top-0 right-0 bg-indigo-600 text-white text-xs font-semibold px-3 py-1 rounded-bl-xl">
-                Popular
-            </div>
-            <h2 class="text-2xl font-semibold mb-4">Pro</h2>
-            <p class="text-gray-500 mb-6">For developers and QA teams who need more power.</p>
-            <ul class="space-y-3 mb-6">
-                <li>✅ Up to 5,000 rows per request</li>
-                <li>✅ CSV and JSON export</li>
-                <li>⚡ Faster generation speed</li>
-                <li>📩 Priority support</li>
-            </ul>
-            <p class="text-3xl font-bold mb-6">€9.99<span class="text-lg font-medium text-gray-500"> / month</span></p>
-            <a href="https://aigenixtech.lemonsqueezy.com/buy/7b96b354-c641-4652-a3c9-7c8fbd84e4a1" target="_blank"
-               class="block text-center bg-indigo-600 text-white rounded-xl py-3 hover:bg-indigo-500 transition">
-                Upgrade to Pro
-            </a>
-<!--            <a id="upgradeBtn" href="https://aigenixtech.lemonsqueezy.com/buy/7b96b354-c641-4652-a3c9-7c8fbd84e4a1" target="_blank">-->
-<!--                <button>Upgrade to Pro</button>-->
-<!--            </a>-->
-
-        </div>
+<div class="plans">
+    <div class="plan">
+        <h3>Free</h3>
+        <p>Generate up to <b id="freeMaxRows">25</b> rows of test data</p>
+        <p>JSON output only</p>
+        <button onclick="window.location.href='index.html'">Current Plan</button>
     </div>
 
-    <p class="text-center mt-12 text-gray-500">
-        All prices in EUR. No credit card required for the Free plan.
-    </p>
+    <div class="plan">
+        <h3>Pro 💎</h3>
+        <p>Generate up to <b id="proMaxRows">500</b> rows</p>
+        <p>Includes CSV export and faster generation</p>
+        <p><b id="proPrice">€9.90 / month</b></p>
+        <button id="buyPro" class="pro-btn">Upgrade to Pro</button>
+    </div>
 </div>
+
+<script>
+    let APP_CONFIG = {};
+
+    async function loadPricingConfig() {
+      try {
+        const res = await fetch("/api/config");
+        APP_CONFIG = await res.json();
+
+        document.getElementById("freeMaxRows").textContent = APP_CONFIG.FREE_MAX_ROWS;
+        document.getElementById("proMaxRows").textContent = APP_CONFIG.PRO_MAX_ROWS;
+        document.getElementById("proPrice").textContent = `€${APP_CONFIG.PRO_PRICE_EUR.toFixed(2)} / month`;
+
+        document.getElementById("buyPro").onclick = () => {
+          window.location.href = APP_CONFIG.PRO_CHECKOUT_URL;
+        };
+
+      } catch (err) {
+        console.error("Failed to load config:", err);
+      }
+    }
+
+    loadPricingConfig();
+</script>
+
 </body>
 </html>

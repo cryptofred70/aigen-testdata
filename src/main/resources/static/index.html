@@ -5,126 +5,257 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AI Test Data Generator</title>
     <style>
-        body { font-family: system-ui, sans-serif; background-color: #f5f6fa; margin:0; padding:2rem; display:flex; flex-direction:column; align-items:center; }
-        .container { background:white; padding:2rem; border-radius:1rem; box-shadow:0 2px 8px rgba(0,0,0,0.1); width:600px; max-width:90%; }
-        h1 { text-align:center; margin-bottom:1rem; }
-        input, textarea, button { width:100%; margin:0.5rem 0; padding:0.75rem; font-size:1rem; border-radius:0.5rem; border:1px solid #ccc; }
-        button { background-color:#4CAF50; color:white; border:none; cursor:pointer; }
-        button:hover { background-color:#45a049; }
-        pre { background-color:#f0f0f0; padding:1rem; border-radius:0.5rem; max-height:300px; overflow-y:auto; }
-        .optional-label { font-size:0.9rem; color:#555; }
+        body {
+          font-family: system-ui, sans-serif;
+          background-color: #f5f6fa;
+          margin: 0;
+          padding: 2rem;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+
+        .container {
+          background: white;
+          padding: 2rem;
+          border-radius: 1rem;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+          width: 600px;
+          max-width: 90%;
+        }
+
+        h1 { text-align: center; margin-bottom: 0.5rem; }
+
+        input, textarea, button {
+          width: 100%;
+          margin: 0.5rem 0;
+          padding: 0.75rem;
+          font-size: 1rem;
+          border-radius: 0.5rem;
+          border: 1px solid #ccc;
+        }
+
+        button {
+          background-color: #4CAF50;
+          color: white;
+          border: none;
+          cursor: pointer;
+        }
+
+        button:hover { background-color: #45a049; }
+
+        pre {
+          background-color: #f0f0f0;
+          padding: 1rem;
+          border-radius: 0.5rem;
+          max-height: 300px;
+          overflow-y: auto;
+        }
+
+        .optional-label { font-size: 0.9rem; color: #555; }
+
+        #upgradeBtn {
+          background-color: #ff7f50;
+          color: white;
+          font-size: 1.1rem;
+          font-weight: bold;
+          padding: 0.75rem 1.5rem;
+          border: none;
+          border-radius: 0.75rem;
+          cursor: pointer;
+          margin-bottom: 1rem;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+        }
+
+        #upgradeBtn:hover { background-color: #ff5c33; }
+
+        #csvBtn {
+          background-color: #2196f3;
+          margin-top: 0.5rem;
+          position: relative;
+        }
+
+        #csvBtn.locked {
+          background-color: #b0bec5;
+          cursor: not-allowed;
+        }
+
+        #csvBtn.locked:hover::after {
+          content: "🔒 Pro feature – upgrade to unlock CSV export";
+          position: absolute;
+          top: -35px;
+          left: 0;
+          width: 100%;
+          background: #333;
+          color: #fff;
+          padding: 5px;
+          border-radius: 6px;
+          font-size: 0.85rem;
+          text-align: center;
+          white-space: nowrap;
+        }
     </style>
 </head>
 <body>
+
 <div class="container">
     <h1>AI Test Data Generator</h1>
 
-    <!-- License Section -->
-    <div id="licenseSection">
-        <label for="licenseKey">Enter your Pro license key:</label>
-        <input id="licenseKey" type="text" placeholder="lsq_12345abcdef" />
-        <button id="verifyLicense">Verify</button>
-    </div>
+    <button id="upgradeBtn">💎 Upgrade to Pro</button>
+    <p style="text-align:center; margin-top:0.5rem;">
+        <a href="pricing.html" style="color:#2196f3; text-decoration:none; font-weight:bold;">
+            💰 See full pricing & plan details
+        </a>
+    </p>
 
-    <!-- Generator Section -->
-    <div id="generatorSection">
-        <label>Fields (comma-separated):</label>
-        <input type="text" id="fields" value="firstName,lastName,email,city,jobTitle" />
+    <label>Fields (comma-separated):</label>
+    <input type="text" id="fields" value="firstName,lastName,email,city,jobTitle" />
 
-        <label>Number of rows:</label>
-        <input type="number" id="rows" value="3" min="1" max="100" />
+    <label>Number of rows:</label>
+    <input type="number" id="rows" value="3" min="1" />
 
-        <label class="optional-label">Advanced instructions (optional, plain English):</label>
-        <textarea id="advancedInstructions" placeholder="E.g., '50% of users live in the same city'"></textarea>
+    <label class="optional-label">Advanced instructions (optional, plain English):</label>
+    <textarea id="advancedInstructions" placeholder="E.g., '50% of users live in the same city'"></textarea>
 
-        <button id="generateBtn">Generate</button>
+    <button id="generateBtn">Generate</button>
+    <button id="csvBtn">⬇️ Download CSV</button>
 
-        <h3>Result:</h3>
-        <pre id="result">Click "Generate" to see data...</pre>
-    </div>
+    <h3>Result:</h3>
+    <pre id="result">Click "Generate" to see data...</pre>
+
+    <hr>
+
+    <label for="licenseKey">Enter your license key:</label>
+    <input id="licenseKey" type="text" placeholder="lsq_12345abcdef" />
+    <button id="verifyLicense">Verify License</button>
 </div>
 
 <script>
-    // Check if user is Pro from localStorage
+    let APP_CONFIG = {};
     let isPro = localStorage.getItem("isPro") === "true";
+    let lastGeneratedData = null;
 
-    function unlockProFeatures() {
-        isPro = true;
-        localStorage.setItem("isPro", "true");
-        document.getElementById("licenseSection").style.display = "none";
-        alert("✅ Pro features unlocked! You now have unlimited rows and CSV export.");
+    async function loadConfig() {
+      try {
+        const res = await fetch("/api/config");
+        APP_CONFIG = await res.json();
+
+        // Set max rows dynamically
+        const MAX_ROWS = isPro ? APP_CONFIG.PRO_MAX_ROWS : APP_CONFIG.FREE_MAX_ROWS;
+        document.getElementById("rows").max = MAX_ROWS;
+
+        // Upgrade button text
+        const upgradeBtn = document.getElementById("upgradeBtn");
+        upgradeBtn.textContent = `💎 Upgrade to Pro (€${APP_CONFIG.PRO_PRICE_EUR.toFixed(2)}/month)`;
+
+        // Adjust UI
+        const csvBtn = document.getElementById("csvBtn");
+        if (isPro) {
+          upgradeBtn.style.display = "none";
+          csvBtn.classList.remove("locked");
+        } else {
+          csvBtn.classList.add("locked");
+        }
+
+        // Upgrade click
+        upgradeBtn.onclick = () => {
+          window.location.href = APP_CONFIG.PRO_CHECKOUT_URL;
+        };
+
+      } catch (err) {
+        console.error("Failed to load config:", err);
+      }
     }
 
-    // Auto-check license from URL parameter
-    const urlParams = new URLSearchParams(window.location.search);
-    const licenseFromUrl = urlParams.get("license");
-    if (licenseFromUrl) {
-        document.getElementById("licenseKey").value = licenseFromUrl;
-        verifyLicense(licenseFromUrl);
-    }
+    // Load config on page load
+    loadConfig();
 
-    document.getElementById("verifyLicense").onclick = () => {
-        const key = document.getElementById("licenseKey").value.trim();
-        if (key) verifyLicense(key);
-    };
-
-    function verifyLicense(key) {
-        fetch("/api/license/verify", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ licenseKey: key })
-        })
-        .then(res => res.json())
-        .then(data => {
-            if (data.valid || (data.license && data.license.status === "active")) {
-                unlockProFeatures();
-            } else {
-                alert("❌ Invalid or expired license key.");
-            }
-        })
-        .catch(err => {
-            console.error(err);
-            alert("❌ Error verifying license. Try again later.");
-        });
-    }
-
-    // Generate Data Button
+    // Generate button logic
     document.getElementById("generateBtn").addEventListener("click", async () => {
-        let fields = document.getElementById("fields").value.split(",").map(f => f.trim()).filter(f => f);
-        let rows = parseInt(document.getElementById("rows").value, 10);
-        const advancedInstructions = document.getElementById("advancedInstructions").value.trim();
+      const fields = document.getElementById("fields").value
+        .split(",").map(f => f.trim()).filter(f => f);
+      const rows = parseInt(document.getElementById("rows").value, 10);
+      const advancedInstructions = document.getElementById("advancedInstructions").value.trim();
 
-        if (!isPro && rows > 50) {
-            alert("Free users can only generate up to 50 rows. Upgrade to Pro for unlimited rows.");
-            rows = 50;
-        }
+      const MAX_ROWS = isPro ? APP_CONFIG.PRO_MAX_ROWS : APP_CONFIG.FREE_MAX_ROWS;
+      if (!isPro && rows > MAX_ROWS) {
+        alert(`Free users can only generate up to ${MAX_ROWS} rows. Upgrade to Pro for more!`);
+        return;
+      }
 
-        const payload = { fields, rows };
-        if (advancedInstructions.length > 0) payload.advancedInstructions = advancedInstructions;
+      const payload = { fields, rows };
+      if (advancedInstructions.length > 0) payload.advancedInstructions = advancedInstructions;
 
-        const resultEl = document.getElementById("result");
-        resultEl.textContent = "Generating data... ⏳";
+      const resultEl = document.getElementById("result");
+      resultEl.textContent = "Generating data... ⏳";
 
-        try {
-            const response = await fetch("/api/generate", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            });
-            const data = await response.json();
-            resultEl.textContent = JSON.stringify(data, null, 2);
-        } catch (err) {
-            resultEl.textContent = "❌ Error: " + err.message;
-        }
+      try {
+        const response = await fetch("/api/generate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-User-Tier": isPro ? "pro" : "free"
+          },
+          body: JSON.stringify(payload)
+        });
+        const data = await response.json();
+        resultEl.textContent = JSON.stringify(data, null, 2);
+        lastGeneratedData = data.data || [];
+      } catch (err) {
+        resultEl.textContent = "❌ Error: " + err.message;
+      }
     });
 
-    // Optional: show thank you alert if ?upgraded=true
-    if (urlParams.get("upgraded") === "true") {
-        alert("🎉 Thank you for upgrading to Pro! You now have access to higher limits and CSV export.");
+    // Verify license
+    document.getElementById("verifyLicense").onclick = () => {
+      const licenseKey = document.getElementById("licenseKey").value;
+
+      fetch("/api/license/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ licenseKey })
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.activated) {
+          localStorage.setItem("isPro", "true");
+          alert("✅ License verified! You now have Pro access.");
+          window.location.reload();
+        } else {
+          alert("❌ Invalid or expired license key.");
+        }
+      });
+    };
+
+    // JSON → CSV conversion
+    function jsonToCSV(data) {
+      if (!Array.isArray(data) || data.length === 0) return "";
+      const headers = Object.keys(data[0]);
+      const rows = data.map(row => headers.map(h => JSON.stringify(row[h] ?? "")).join(","));
+      return headers.join(",") + "\n" + rows.join("\n");
     }
 
-    // Hide license section if already Pro
-    if (isPro) document.getElementById("licenseSection").style.display = "none";
+    // CSV download
+    document.getElementById("csvBtn").onclick = () => {
+      if (!isPro) {
+        alert("🔒 CSV export is a Pro feature. Upgrade to unlock!");
+        return;
+      }
+      if (!lastGeneratedData || lastGeneratedData.length === 0) {
+        alert("No data to export. Please generate data first!");
+        return;
+      }
+
+      const csv = jsonToCSV(lastGeneratedData);
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "generated_data.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    };
 </script>
+
 </body>
 </html>
